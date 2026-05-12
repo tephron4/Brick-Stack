@@ -1,4 +1,4 @@
-#include "LedControl.h"
+#include <LedControl.h>
 
 /*
  Now we need a LedControl to work with.
@@ -10,17 +10,22 @@
  */
 LedControl lc=LedControl(12,10,11,1);
 
+/* Set pin for button */
+int buttonPin = 9;
+
 /* we always wait a bit between updates of the display */
-unsigned long delaytime=100;
+unsigned long delayTime=100;
 
 int bricks=4; // Start with 4 dots
 int line=0; // Start with dots on the bottom
 int position=-4; // Start with dots off the left side
 int change=1;
+bool stop=false;
 int ledPositions[4]={-1,-1,-1,-1};
 
 void setup() {
   Serial.begin(9600);
+  pinMode(buttonPin, INPUT_PULLUP);
   /*
    The MAX72XX is in power-saving mode on startup,
    we have to do a wakeup call
@@ -83,13 +88,32 @@ void printLEDPositions() {
 void loop() { 
   getLEDPositions();
 
-  Serial.println(line);
-  Serial.println(position);
-  Serial.println(bricks);
-  Serial.println(change);
-  printLEDPositions();
+  // Serial.println(line);
+  // Serial.println(position);
+  // Serial.println(bricks);
+  // Serial.println(change);
+  // printLEDPositions();
 
   lightBricks();
-  shift();
-  delay(delaytime);
+
+  if (digitalRead(buttonPin)==LOW) {
+    Serial.println("Button pressed");
+    if (!stop) {
+      stop = true;
+    }
+    else {
+      /* Reset game */
+      bricks=4;
+      line=0;
+      position=-4;
+      change=1;
+      stop=false;
+      memset(ledPositions, -1, sizeof(ledPositions));
+    }
+  }
+
+  if (!stop) {
+    shift();
+  }
+  delay(delayTime);
 }
