@@ -11,7 +11,11 @@
 LedControl lc=LedControl(12,10,11,1);
 
 /* Set pin for button */
-int buttonPin = 9;
+int playButtonPin=9;
+int resetButtonPin=6;
+
+/* Button state variables to handle button press holds */
+int lastPlayButtonState=HIGH;
 
 /* we always wait a bit between updates of the display */
 unsigned long delayTime=100;
@@ -20,12 +24,13 @@ int bricks=4; // Start with 4 dots
 int line=0; // Start with dots on the bottom
 int position=-4; // Start with dots off the left side
 int change=1;
-bool stop=false;
+bool gameOver=false;
 int ledPositions[4]={-1,-1,-1,-1};
 
 void setup() {
   Serial.begin(9600);
-  pinMode(buttonPin, INPUT_PULLUP);
+  pinMode(playButtonPin, INPUT_PULLUP);
+  pinMode(resetButtonPin, INPUT_PULLUP);
   /*
    The MAX72XX is in power-saving mode on startup,
    we have to do a wakeup call
@@ -65,7 +70,6 @@ void getLEDPositions() {
   This function lights up the bricks.
 */
 void lightBricks() {
-  lc.setRow(0,line,B00000000); // Clear the line so that the bricks move
   for(int i=0; i<bricks; i++) {
     int ledPos=ledPositions[i];
     if(ledPos>=0 && ledPos<=7) {
@@ -85,35 +89,80 @@ void printLEDPositions() {
   Serial.println("]");
 }
 
-void loop() { 
-  getLEDPositions();
+void resetMovement() {
+  position=0-bricks;
+  change=1;
+  memset(ledPositions, -1, sizeof(ledPositions));
+}
 
-  // Serial.println(line);
-  // Serial.println(position);
-  // Serial.println(bricks);
-  // Serial.println(change);
-  // printLEDPositions();
+void resetDisplay() {
+  lc.setRow(0,0,B00000000);
+  lc.setRow(0,1,B00000000);
+  lc.setRow(0,2,B00000000);
+  lc.setRow(0,3,B00000000);
+  lc.setRow(0,4,B00000000);
+  lc.setRow(0,5,B00000000);
+  lc.setRow(0,6,B00000000);
+  lc.setRow(0,7,B00000000);
+}
 
-  lightBricks();
+void loop() {
+  int newPlayButtonState=digitalRead(playButtonPin);
+  // Serial.println("--------");
+  // Serial.println(newPlayButtonState);
+  // Serial.println(lastPlayButtonState);
+  // Serial.println(newPlayButtonState!=lastPlayButtonState);
+  // Serial.println("--------");
 
-  if (digitalRead(buttonPin)==LOW) {
-    Serial.println("Button pressed");
-    if (!stop) {
-      stop = true;
+  if (!gameOver) {
+    getLEDPositions();
+
+    // Serial.println(line);
+    // Serial.println(position);
+    // Serial.println(bricks);
+    // Serial.println(change);
+    // printLEDPositions();
+
+    lc.setRow(0,line,B00000000); // Clear the line so that the bricks move
+    lightBricks();
+
+    if (newPlayButtonState!=lastPlayButtonState) {
+      if (newPlayButtonState==LOW) {
+        // Serial.println("Button pressed");
+        line=line+1;
+        resetMovement();
+
+        if (line > 7) {
+          // Serial.println("GAME OVER");
+          gameOver=true;
+        }
+      }
+
+      lastPlayButtonState=newPlayButtonState;
     }
-    else {
+
+    if(digitalRead(resetButtonPin)==LOW) {
+      // Serial.println("Reset game");
       /* Reset game */
       bricks=4;
       line=0;
-      position=-4;
-      change=1;
-      stop=false;
-      memset(ledPositions, -1, sizeof(ledPositions));
+      gameOver=false;
+      resetMovement();
+      resetDisplay();
     }
+
+    shift();
+    delay(delayTime);
+  } else {
+    // Serial.println("Game is over");
   }
 
-  if (!stop) {
-    shift();
+  if(digitalRead(resetButtonPin)==LOW) {
+    /* Reset game */
+    bricks=4;
+    line=0;
+    gameOver=false;
+    resetMovement();
+    resetDisplay();
   }
-  delay(delayTime);
 }
