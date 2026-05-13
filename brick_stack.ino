@@ -19,6 +19,7 @@ int lastPlayButtonState=HIGH;
 
 /* we always wait a bit between updates of the display */
 unsigned long delayTime=100;
+unsigned long blinkTime=500;
 
 int bricks=4; // Start with 4 dots
 int line=0; // Start with dots on the bottom
@@ -84,6 +85,19 @@ void lightGameBoard() {
         lc.setLed(0, i, position, true);
       }
     }
+  }
+}
+
+/*
+  This function handles blinking the game board
+*/
+void gameOverBlink() {
+  // Serial.println("Blinking");
+  for (int i=0; i<3; i++) {
+    resetDisplay();
+    delay(blinkTime);
+    lightGameBoard();
+    delay(blinkTime);
   }
 }
 
@@ -234,9 +248,8 @@ void loop() {
 
     shift();
     delay(delayTime);
-  }
-
-  if(digitalRead(resetButtonPin)==LOW) {
+  } else {
+    gameOverBlink();
     resetGame();
   }
 }
