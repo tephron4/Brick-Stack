@@ -26,6 +26,7 @@ int position=-4; // Start with dots off the left side
 int change=1;
 bool gameOver=false;
 int ledPositions[4]={-1,-1,-1,-1};
+int gameBoard[8][4];
 
 void setup() {
   Serial.begin(9600);
@@ -40,6 +41,10 @@ void setup() {
   lc.setIntensity(0,8);
   /* and clear the display */
   lc.clearDisplay(0);
+
+  /* Set the gameboard to default (-1 for all) */
+  resetGameBoard();
+  printGameBoard();
 }
 
 /*
@@ -61,19 +66,23 @@ void shift() {
   of the lights to turn on.
 */
 void getLEDPositions() {
+  memset(ledPositions, -1, sizeof(ledPositions));
   for(int i=0; i<bricks; i++){
     ledPositions[i] = position+i;
   }
 }
 
 /*
-  This function lights up the bricks.
+  This function lights up the board.
 */
-void lightBricks() {
-  for(int i=0; i<bricks; i++) {
-    int ledPos=ledPositions[i];
-    if(ledPos>=0 && ledPos<=7) {
-      lc.setLed(0,line,ledPos,true);
+void lightGameBoard() {
+  for (int i=0; i<8; i++) {
+    lc.setRow(0, i, B00000000);
+    for (int j=0; j<4; j++) {
+      int position=i==line ? ledPositions[j] : gameBoard[i][j];
+      if (position>=0 && position<=7) {
+        lc.setLed(0, i, position, true);
+      }
     }
   }
 }
@@ -106,6 +115,74 @@ void resetDisplay() {
   lc.setRow(0,7,B00000000);
 }
 
+void resetGameBoard() {
+  memset(gameBoard, -1, sizeof(gameBoard));
+}
+
+void handlePlayButtonPress() {
+  for (int i=0; i<bricks; i++) {
+    /* Handle bricks outside of grid */
+    if (ledPositions[i]<0 || ledPositions[i]>7) {
+      bricks-=1;
+    }
+  }
+  /* Handle bricks not on top of other bricks */
+  if (line>0) {
+    checkBricks();
+  }
+}
+
+void checkBricks() {
+  int previousLine[4]={-1,-1,-1,-1};
+  memcpy(previousLine, gameBoard[line-1], sizeof(previousLine));
+  /* Loop through led positions */
+  for (int i=0; i<4; i++) {
+    bool found = false;
+    /* Loop through last line */
+    for (int j=0; j<4; j++) {
+      // Serial.print("Checking ");
+      // Serial.println(ledPositions[i]);
+      if (previousLine[j]==ledPositions[i]) {
+        // Serial.print(ledPositions[i]);
+        // Serial.println(" found");
+        found = true;
+      }
+    }
+    
+    if (!found) {
+      // Serial.print(ledPositions[i]);
+      // Serial.println(" not found");
+      ledPositions[i] = -1;
+      printLEDPositions();
+      bricks-=1;
+    }
+  }
+}
+
+void printGameBoard() {
+  Serial.println("------------");
+  for (int i=0; i<8; i++) {
+    for (int j=0; j<4; j++) {
+      Serial.print(gameBoard[i][j]);
+      if (j != 3) {
+        Serial.print(", ");
+      }
+    }
+    Serial.println();
+  }
+  Serial.println("------------");
+}
+
+void resetGame() {
+  /* Reset game */
+  bricks=4;
+  line=0;
+  gameOver=false;
+  resetGameBoard();
+  resetMovement();
+  resetDisplay();
+}
+
 void loop() {
   int newPlayButtonState=digitalRead(playButtonPin);
   // Serial.println("--------");
@@ -123,14 +200,24 @@ void loop() {
     // Serial.println(change);
     // printLEDPositions();
 
-    lc.setRow(0,line,B00000000); // Clear the line so that the bricks move
-    lightBricks();
+    lightGameBoard();
 
     if (newPlayButtonState!=lastPlayButtonState) {
       if (newPlayButtonState==LOW) {
+        /* Save position of bricks to gameBoard */
+        handlePlayButtonPress();
+        if (bricks==0) {
+          gameOver=true;
+        }
+        lightGameBoard();
+        memcpy(gameBoard[line], ledPositions, sizeof(ledPositions));
+        printLEDPositions();
+        printGameBoard();
+
         // Serial.println("Button pressed");
         line=line+1;
         resetMovement();
+
 
         if (line > 7) {
           // Serial.println("GAME OVER");
@@ -142,27 +229,14 @@ void loop() {
     }
 
     if(digitalRead(resetButtonPin)==LOW) {
-      // Serial.println("Reset game");
-      /* Reset game */
-      bricks=4;
-      line=0;
-      gameOver=false;
-      resetMovement();
-      resetDisplay();
+      resetGame();
     }
 
     shift();
     delay(delayTime);
-  } else {
-    // Serial.println("Game is over");
   }
 
   if(digitalRead(resetButtonPin)==LOW) {
-    /* Reset game */
-    bricks=4;
-    line=0;
-    gameOver=false;
-    resetMovement();
-    resetDisplay();
+    resetGame();
   }
 }
